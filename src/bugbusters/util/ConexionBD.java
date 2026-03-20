@@ -71,11 +71,14 @@ public class ConexionBD {
             String database = env.get("DB_DATABASE");
             String user = env.get("DB_USER");
             String password = env.get("DB_PASSWORD");
-            String sslCa = env.get("DB_SSL_CA");
+            // Devuelve automáticamente el directorio desde donde se ejecuta el programa.
+            // Así la ruta completa se construye sola sin que nadie tenga que tocar nada.
+            String sslCa = (System.getProperty("user.dir") + "/" + env.get("DB_SSL_CA"))
+                    .replace("\\", "/");
 
             String url = String.format(
-                    "jdbc:mysql://%s:%s/%s?sslMode=VERIFY_CA&trustCertificateKeyStoreUrl=file:%s&trustCertificateKeyStorePassword=''",
-                    host, port, database, sslCa
+                    "jdbc:mysql://%s:%s/%s?sslMode=REQUIRED",
+                    host, port, database
             );
 
             conexion = DriverManager.getConnection(url, user, password);

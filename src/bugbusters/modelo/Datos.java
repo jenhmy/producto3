@@ -1,61 +1,47 @@
 package bugbusters.modelo;
 
-import bugbusters.modelo.excepciones.YaExisteException;
+import bugbusters.dao.ArticuloDAO;
+import bugbusters.dao.ClienteDAO;
+import bugbusters.dao.PedidoDAO;
+import bugbusters.factory.DAOFactory;
+
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Clase que gestiona todos los datos de la aplicación.
  *
- * Actúa como repositorio central que almacena y administra las colecciones
- * de artículos, clientes y pedidos. Proporciona métodos para añadir, buscar,
- * eliminar y filtrar los diferentes recursos del sistema.
+ * Actúa como repositorio central que coordina el acceso a los datos
+ * mediante el patrón DAO. En lugar de almacenar los datos en memoria,
+ * delega todas las operaciones en los DAOs correspondientes que
+ * persisten la información en la base de datos MySQL.
  *
- * Las colecciones utilizadas son:
- * - {@link LinkedHashMap} para artículos (mantiene orden de inserción)
- * - {@link ArrayList} para pedidos
- * - {@link GenericoDAO} para clientes (implementación genérica)
+ * Los DAOs se obtienen a través de DAOFactory, por lo que esta clase
+ * no conoce la implementación concreta (MySQL, Oracle, etc.)
  *
  * @author BugBusters
  * @version 1.0
  * @since 1.0
  */
-
 public class Datos {
-    /**
-     * Colección de artículos almacenados por código.
-     * Se utiliza {@link LinkedHashMap} para mantener el orden de inserción.
-     */
-    private GenericoDAO<String, Articulo> articulos;
+
+    /** DAO para la gestión de artículos */
+    private ArticuloDAO articulos;
+
+    /** DAO para la gestión de clientes */
+    private ClienteDAO clientes;
+
+    /** DAO para la gestión de pedidos */
+    private PedidoDAO pedidos;
 
     /**
-     * Lista de todos los pedidos realizados en el sistema.
-     */
-    private GenericoDAO<Integer, Pedido> pedidos;
-
-    /**
-     * Último número de pedido generado.
-     * Se utiliza para asignar números secuenciales a los nuevos pedidos.
-     */
-    private int ultimoNumeroPedido;
-
-    /**
-     * DAO genérico para la gestión de clientes.
-     * Utiliza el email como clave identificadora.
-     */
-    private GenericoDAO<String, Cliente> clientes;
-
-    /**
-     * Constructor que inicializa todas las colecciones vacías.
+     * Constructor que inicializa los DAOs a través de la Factory.
+     * No conoce la implementación concreta, solo las interfaces.
      */
     public Datos() {
-        articulos = new GenericoDAO<>();
-        pedidos = new GenericoDAO<>();
-        clientes = new GenericoDAO<>();
-        ultimoNumeroPedido = 0;
+        articulos = DAOFactory.getArticuloDAO();
+        clientes = DAOFactory.getClienteDAO();
+        pedidos = DAOFactory.getPedidoDAO();
     }
 
     /* =========================================================
@@ -63,37 +49,33 @@ public class Datos {
        ========================================================= */
 
     /**
-     * Añade un artículo a la colección.
-     *
+     * Añade un artículo a la base de datos.
      * @param articulo El artículo a añadir
      */
     public void anadirArticulo(Articulo articulo) {
-        articulos.anadir(articulo.getCodigo(), articulo);
+        articulos.insertar(articulo);
     }
 
     /**
-     * Busca un artículo a partir de su código.
-     *
-     * @param codigo Código del artículo que se quiere buscar
-     * @return El objeto Articulo si existe, null si no existe
+     * Busca un artículo por su código.
+     * @param codigo Código del artículo a buscar
+     * @return El artículo si existe, null si no existe
      */
     public Articulo buscarArticulo(String codigo) {
         return articulos.buscar(codigo);
     }
 
     /**
-     * Comprueba si ya existe un artículo con un código concreto.
-     *
-     * @param codigo Código que se desea comprobar
-     * @return true si el artículo existe, false si no existe
+     * Comprueba si existe un artículo con un código concreto.
+     * @param codigo Código a comprobar
+     * @return true si existe, false si no existe
      */
     public boolean existeArticulo(String codigo) {
         return articulos.existe(codigo);
     }
 
     /**
-     * Devuelve todos los artículos guardados en forma de lista.
-     *
+     * Devuelve todos los artículos de la base de datos.
      * @return Lista con todos los artículos
      */
     public List<Articulo> obtenerTodosArticulos() {
@@ -105,38 +87,31 @@ public class Datos {
        ========================================================= */
 
     /**
-     * Genera un número de pedido único incremental.
-     *
+     * Genera un número de pedido único consultando el último en la BD.
      * @return Número de pedido único
      */
     public int generarNumeroPedido() {
-        ultimoNumeroPedido++;
-        return ultimoNumeroPedido;
+        return pedidos.obtenerUltimoNumeroPedido() + 1;
     }
 
     /**
-     * Añade un pedido a la lista de pedidos.
-     *
+     * Añade un pedido a la base de datos.
      * @param pedido El pedido a añadir
      */
     public void anadirPedido(Pedido pedido) {
-        pedidos.anadir(pedido.getNumeroPedido(), pedido);
+        pedidos.insertar(pedido);
     }
 
     /**
-     * Elimina un pedido de la lista.
-     *
-     * @param numeroPedido El pedido a eliminar
+     * Elimina un pedido de la base de datos.
+     * @param numeroPedido Número del pedido a eliminar
      */
     public void eliminarPedido(int numeroPedido) {
-        if (pedidos.existe(numeroPedido)) {
-            pedidos.eliminar(numeroPedido);
-        }
+        pedidos.eliminar(numeroPedido);
     }
 
     /**
      * Busca un pedido por su número.
-     *
      * @param numeroPedido Número del pedido a buscar
      * @return El pedido si existe, null si no existe
      */
@@ -146,43 +121,36 @@ public class Datos {
 
     /**
      * Devuelve la lista de pedidos pendientes (no enviados).
-     *
      * @return Lista de pedidos pendientes
      */
     public ArrayList<Pedido> getPedidosPendientes() {
-        return pedidos.stream()
-                .filter(Pedido::puedeCancelar)
-                .collect(Collectors.toCollection(ArrayList::new));
+        return new ArrayList<>(pedidos.obtenerPedidosPendientes());
     }
 
     /**
-     * Devuelve la lista de pedidos ya enviados.
-     *
+     * Devuelve la lista de pedidos enviados.
      * @return Lista de pedidos enviados
      */
     public List<Pedido> getPedidosEnviados() {
-        return pedidos.stream()
-                .filter(p -> !p.puedeCancelar())
-                .collect(Collectors.toCollection(ArrayList::new));
+        return pedidos.obtenerPedidosEnviados();
     }
 
     /* =========================================================
       ================= GESTIÓN DE CLIENTES =====================
       ========================================================= */
+
     /**
-     * Añade un cliente a la colección.
-     *
+     * Añade un cliente a la base de datos.
      * @param cliente El cliente a añadir
      */
     public void anadirCliente(Cliente cliente) {
-        clientes.anadir(cliente.getEmail(), cliente);
+        clientes.insertar(cliente);
     }
 
     /**
-     * Comprueba si ya existe un cliente con un email concreto.
-     *
-     * @param email Email que se desea comprobar
-     * @return true si el cliente existe, false si no existe
+     * Comprueba si existe un cliente con un email concreto.
+     * @param email Email a comprobar
+     * @return true si existe, false si no existe
      */
     public boolean existeCliente(String email) {
         return clientes.existe(email);
@@ -190,7 +158,6 @@ public class Datos {
 
     /**
      * Busca un cliente por su email.
-     *
      * @param email Email del cliente a buscar
      * @return El cliente si existe, null si no existe
      */
@@ -199,47 +166,31 @@ public class Datos {
     }
 
     /**
-     * Devuelve la lista completa de clientes.
-     *
-     * @return ArrayList con todos los clientes
+     * Devuelve todos los clientes de la base de datos.
+     * @return Lista con todos los clientes
      */
     public ArrayList<Cliente> obtenerTodosClientes() {
-        return clientes.obtenerTodos();
+        return new ArrayList<>(clientes.obtenerTodos());
     }
 
     /**
-     * Filtra y devuelve solo los clientes de tipo Estándar.
-     *
-     * @return ArrayList con los clientes estándar
+     * Devuelve solo los clientes de tipo Estándar.
+     * @return Lista de clientes estándar
      */
     public ArrayList<Cliente> obtenerClientesEstandar() {
-        ArrayList<Cliente> listaEstandar = new ArrayList<>();
-        for (Cliente c : clientes.obtenerTodos()) {
-            if (c instanceof ClienteEstandar) {
-                listaEstandar.add(c);
-            }
-        }
-        return listaEstandar;
+        return new ArrayList<>(clientes.obtenerClientesEstandar());
     }
 
     /**
-     * Filtra y devuelve solo los clientes de tipo Premium.
-     *
-     * @return ArrayList con los clientes premium
+     * Devuelve solo los clientes de tipo Premium.
+     * @return Lista de clientes premium
      */
     public ArrayList<Cliente> obtenerClientesPremium() {
-        ArrayList<Cliente> listaPremium = new ArrayList<>();
-        for (Cliente c : clientes.obtenerTodos()) {
-            if (c instanceof ClientePremium) {
-                listaPremium.add(c);
-            }
-        }
-        return listaPremium;
+        return new ArrayList<>(clientes.obtenerClientesPremium());
     }
 
     /**
      * Elimina un cliente por su email.
-     *
      * @param email Email del cliente a eliminar
      * @return true si se eliminó correctamente, false si no existía
      */
