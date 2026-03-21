@@ -23,19 +23,18 @@ import java.util.List;
 public class PedidoDAOMySQL implements PedidoDAO {
 
     /**
-     * Inserta un pedido en la base de datos.
-     * Solo guarda las claves foráneas (email cliente y código artículo).
+     * Inserta un pedido en la base de datos llamando al procedimiento almacenado
+     * sp_insertar_pedido. El procedimiento gestiona la transacción internamente.
      * @param pedido Pedido a insertar
      */
     @Override
     public void insertar(Pedido pedido) {
-        String sql = "INSERT INTO pedidos (email_cliente, codigo_articulo, cantidad, fecha_hora) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, pedido.getCliente().getEmail());
-            ps.setString(2, pedido.getArticulo().getCodigo());
-            ps.setInt(3, pedido.getCantidad());
-            ps.setTimestamp(4, Timestamp.valueOf(pedido.getFechaHora()));
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_insertar_pedido(?,?,?,?)}")) {
+            cs.setString(1, pedido.getCliente().getEmail());
+            cs.setString(2, pedido.getArticulo().getCodigo());
+            cs.setInt(3, pedido.getCantidad());
+            cs.setTimestamp(4, Timestamp.valueOf(pedido.getFechaHora()));
+            cs.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Error al insertar pedido: " + e.getMessage());
         }
@@ -49,9 +48,9 @@ public class PedidoDAOMySQL implements PedidoDAO {
      */
     @Override
     public Pedido buscar(Integer numeroPedido) {
-        String sql = "SELECT p.*, " +
-                "c.nombre, c.domicilio, c.nif, c.tipo, " +
-                "a.descripcion, a.precio_venta, a.gastos_envio, a.tiempo_preparacion " +
+        String sql = "SELECT p.numero_pedido, p.cantidad, p.fecha_hora, " +
+                "c.email AS email_cliente, c.nombre, c.domicilio, c.nif, c.tipo, " +
+                "a.codigo AS codigo_articulo, a.descripcion, a.precio_venta, a.gastos_envio, a.tiempo_preparacion " +
                 "FROM pedidos p " +
                 "JOIN clientes c ON p.email_cliente = c.email " +
                 "JOIN articulos a ON p.codigo_articulo = a.codigo " +
@@ -76,9 +75,9 @@ public class PedidoDAOMySQL implements PedidoDAO {
     @Override
     public List<Pedido> obtenerTodos() {
         return obtenerPedidosPorSQL(
-                "SELECT p.*, " +
-                        "c.nombre, c.domicilio, c.nif, c.tipo, " +
-                        "a.descripcion, a.precio_venta, a.gastos_envio, a.tiempo_preparacion " +
+                "SELECT p.numero_pedido, p.cantidad, p.fecha_hora, " +
+                        "c.email AS email_cliente, c.nombre, c.domicilio, c.nif, c.tipo, " +
+                        "a.codigo AS codigo_articulo, a.descripcion, a.precio_venta, a.gastos_envio, a.tiempo_preparacion " +
                         "FROM pedidos p " +
                         "JOIN clientes c ON p.email_cliente = c.email " +
                         "JOIN articulos a ON p.codigo_articulo = a.codigo"
@@ -96,15 +95,15 @@ public class PedidoDAOMySQL implements PedidoDAO {
     }
 
     /**
-     * Elimina un pedido por su número.
+     * Elimina un pedido de la base de datos llamando al procedimiento almacenado
+     * sp_eliminar_pedido. El procedimiento gestiona la transacción internamente.
      * @param numeroPedido Número del pedido a eliminar
      */
     @Override
     public void eliminar(Integer numeroPedido) {
-        String sql = "DELETE FROM pedidos WHERE numero_pedido = ?";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql)) {
-            ps.setInt(1, numeroPedido);
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_eliminar_pedido(?)}")) {
+            cs.setInt(1, numeroPedido);
+            cs.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Error al eliminar pedido: " + e.getMessage());
         }
@@ -169,7 +168,7 @@ public class PedidoDAOMySQL implements PedidoDAO {
      * @throws SQLException Si hay error al leer el ResultSet
      */
     private Pedido construirPedido(ResultSet rs) throws SQLException {
-        Cliente cliente = ClienteDAOMySQL.construirClienteEstatico(rs);
+        Cliente cliente = ClienteDAOMySQL.construirClienteDesdeJoin(rs);
         Articulo articulo = new Articulo(
                 rs.getString("codigo_articulo"),
                 rs.getString("descripcion"),

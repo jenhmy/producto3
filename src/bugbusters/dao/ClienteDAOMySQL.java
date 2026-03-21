@@ -22,20 +22,20 @@ import java.util.List;
 public class ClienteDAOMySQL implements ClienteDAO {
 
     /**
-     * Inserta un cliente en la base de datos.
-     * Guarda el tipo (ESTANDAR/PREMIUM) para poder reconstruir el objeto correcto al leer.
+     * Inserta un cliente en la base de datos llamando al procedimiento almacenado
+     * sp_insertar_cliente. El procedimiento gestiona la transacción internamente.
+     * Determina el tipo (ESTANDAR/PREMIUM) según la clase del objeto cliente.
      * @param cliente Cliente a insertar
      */
     @Override
     public void insertar(Cliente cliente) {
-        String sql = "INSERT INTO clientes (email, nombre, domicilio, nif, tipo) VALUES (?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql)) {
-            ps.setString(1, cliente.getEmail());
-            ps.setString(2, cliente.getNombre());
-            ps.setString(3, cliente.getDomicilio());
-            ps.setString(4, cliente.getNif());
-            ps.setString(5, cliente instanceof ClientePremium ? "PREMIUM" : "ESTANDAR");
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_insertar_cliente(?,?,?,?,?)}")) {
+            cs.setString(1, cliente.getEmail());
+            cs.setString(2, cliente.getNombre());
+            cs.setString(3, cliente.getDomicilio());
+            cs.setString(4, cliente.getNif());
+            cs.setString(5, cliente instanceof ClientePremium ? "PREMIUM" : "ESTANDAR");
+            cs.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Error al insertar cliente: " + e.getMessage());
         }
@@ -92,17 +92,24 @@ public class ClienteDAOMySQL implements ClienteDAO {
     }
 
     /**
-     * Elimina un cliente por su email.
+     * Elimina un cliente de la base de datos llamando al procedimiento almacenado
+     * sp_eliminar_cliente. El procedimiento gestiona la transacción internamente.
+     * Si el cliente tiene pedidos asociados, MySQL lanza el error 1451 (clave foránea)
+     * y se lanza una RuntimeException con un mensaje descriptivo para el usuario.
      * @param email Email del cliente a eliminar
+     * @throws RuntimeException Si el cliente tiene pedidos asociados o hay un error en la BD
      */
     @Override
     public void eliminar(String email) {
-        String sql = "DELETE FROM clientes WHERE email = ?";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_eliminar_cliente(?)}")) {
+            cs.setString(1, email);
+            cs.executeUpdate();
         } catch (SQLException e) {
-            System.err.println("Error al eliminar cliente: " + e.getMessage());
+            if (e.getErrorCode() == 1451) {
+                throw new RuntimeException("No se puede eliminar el cliente porque tiene pedidos asociados. Elimina primero sus pedidos.");
+            } else {
+                throw new RuntimeException("Error al eliminar cliente: " + e.getMessage());
+            }
         }
     }
 
@@ -146,15 +153,39 @@ public class ClienteDAOMySQL implements ClienteDAO {
     }
 
     /**
-     * Método privado auxiliar que construye un objeto Cliente a partir de un ResultSet.
-     * Crea ClienteEstandar o ClientePremium según el campo tipo de la base de datos.
-     * Evita repetir código en buscar() y obtenerTodos().
+     * Construye un objeto Cliente a partir de un ResultSet de una consulta directa
+     * sobre la tabla clientes. En este caso la columna del email se llama "email".
      * @param rs ResultSet con los datos del cliente
-     * @return ClienteEstandar o ClientePremium según corresponda
+     * @return ClienteEstandar o ClientePremium según el campo tipo
      * @throws SQLException Si hay error al leer el ResultSet
      */
     public static Cliente construirClienteEstatico(ResultSet rs) throws SQLException {
-        String email = rs.getString("email");
+        return construirDesdeColumna(rs, "email");
+    }
+
+    /**
+     * Construye un objeto Cliente a partir de un ResultSet de una consulta con JOIN
+     * entre pedidos y clientes. En este caso la columna del email se llama "email_cliente"
+     * para evitar ambigüedad con la columna email de la tabla clientes.
+     * @param rs ResultSet con los datos del cliente
+     * @return ClienteEstandar o ClientePremium según el campo tipo
+     * @throws SQLException Si hay error al leer el ResultSet
+     */
+    public static Cliente construirClienteDesdeJoin(ResultSet rs) throws SQLException {
+        return construirDesdeColumna(rs, "email_cliente");
+    }
+
+    /**
+     * Método privado auxiliar que construye un Cliente a partir de un ResultSet.
+     * Evita repetir código entre construirClienteEstatico() y construirClienteDesdeJoin()
+     * siguiendo el principio DRY. Crea ClienteEstandar o ClientePremium según el campo tipo.
+     * @param rs ResultSet con los datos del cliente
+     * @param columnaEmail Nombre de la columna que contiene el email según el contexto
+     * @return ClienteEstandar o ClientePremium según corresponda
+     * @throws SQLException Si hay error al leer el ResultSet
+     */
+    private static Cliente construirDesdeColumna(ResultSet rs, String columnaEmail) throws SQLException {
+        String email = rs.getString(columnaEmail);
         String nombre = rs.getString("nombre");
         String domicilio = rs.getString("domicilio");
         String nif = rs.getString("nif");

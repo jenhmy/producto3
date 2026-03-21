@@ -19,19 +19,19 @@ import java.util.List;
 public class ArticuloDAOMySQL implements ArticuloDAO {
 
     /**
-     * Inserta un artículo en la base de datos.
+     * Inserta un artículo en la base de datos llamando al procedimiento almacenado
+     * sp_insertar_articulo. El procedimiento gestiona la transacción internamente.
      * @param articulo Artículo a insertar
      */
     @Override
     public void insertar(Articulo articulo) {
-        String sql = "INSERT INTO articulos (codigo, descripcion, precio_venta, gastos_envio, tiempo_preparacion) VALUES (?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql)) {
-            ps.setString(1, articulo.getCodigo());
-            ps.setString(2, articulo.getDescripcion());
-            ps.setDouble(3, articulo.getPrecioVenta());
-            ps.setDouble(4, articulo.getGastosEnvio());
-            ps.setInt(5, articulo.getTiempoPreparacionMin());
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_insertar_articulo(?,?,?,?,?)}")) {
+            cs.setString(1, articulo.getCodigo());
+            cs.setString(2, articulo.getDescripcion());
+            cs.setDouble(3, articulo.getPrecioVenta());
+            cs.setDouble(4, articulo.getGastosEnvio());
+            cs.setInt(5, articulo.getTiempoPreparacionMin());
+            cs.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Error al insertar artículo: " + e.getMessage());
         }
@@ -99,15 +99,15 @@ public class ArticuloDAOMySQL implements ArticuloDAO {
     }
 
     /**
-     * Elimina un artículo por su código.
+     * Elimina un artículo de la base de datos llamando al procedimiento almacenado
+     * sp_eliminar_articulo. El procedimiento gestiona la transacción internamente.
      * @param codigo Código del artículo a eliminar
      */
     @Override
     public void eliminar(String codigo) {
-        String sql = "DELETE FROM articulos WHERE codigo = ?";
-        try (PreparedStatement ps = ConexionBD.getConexion().prepareStatement(sql)) {
-            ps.setString(1, codigo);
-            ps.executeUpdate();
+        try (CallableStatement cs = ConexionBD.getConexion().prepareCall("{CALL sp_eliminar_articulo(?)}")) {
+            cs.setString(1, codigo);
+            cs.executeUpdate();
         } catch (SQLException e) {
             System.err.println("Error al eliminar artículo: " + e.getMessage());
         }

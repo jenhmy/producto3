@@ -286,6 +286,8 @@ public class Vista {
 
     /**
      * Elimina un cliente del sistema previa confirmación.
+     * Si el cliente tiene pedidos asociados, informa al usuario
+     * de que debe eliminar primero sus pedidos antes de poder eliminarlo.
      */
     private void eliminarCliente() {
         TerminalUI.sectionTitle("ELIMINAR CLIENTE");
@@ -298,10 +300,14 @@ public class Vista {
             TerminalUI.info("Cliente localizado correctamente.");
             TerminalUI.showClientCard(aEliminar);
 
-            controlador.eliminarCliente(email);
+            boolean eliminado = controlador.eliminarCliente(email);
 
-            TerminalUI.success("Cliente eliminado con éxito.");
-            TerminalUI.spotlight("REGISTRO ELIMINADO DEL SISTEMA");
+            if (eliminado) {
+                TerminalUI.success("Cliente eliminado con éxito.");
+                TerminalUI.spotlight("REGISTRO ELIMINADO DEL SISTEMA");
+            } else {
+                TerminalUI.error("No se puede eliminar el cliente porque tiene pedidos asociados. Elimina primero sus pedidos.");
+            }
 
         } catch (EmailInvalidoException | RecursoNoEncontradoException e) {
             TerminalUI.exception(e.getMessage());

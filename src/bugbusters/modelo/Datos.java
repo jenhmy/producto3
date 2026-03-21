@@ -190,14 +190,19 @@ public class Datos {
     }
 
     /**
-     * Elimina un cliente por su email.
+     * Elimina un cliente de la base de datos por su email.
+     * Devuelve false si el cliente no existe o si tiene pedidos asociados.
      * @param email Email del cliente a eliminar
-     * @return true si se eliminó correctamente, false si no existía
+     * @return true si se eliminó correctamente, false si no existía o tiene pedidos asociados
      */
     public boolean eliminarCliente(String email) {
         if (clientes.existe(email)) {
-            clientes.eliminar(email);
-            return true;
+            try {
+                clientes.eliminar(email);
+                return true;
+            } catch (RuntimeException e) {
+                return false;
+            }
         }
         return false;
     }
