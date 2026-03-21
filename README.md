@@ -12,7 +12,7 @@ de diseño como MVC, DAO y Factory.
 - MySQL Workbench
 - Credenciales de acceso a la base de datos (solicitar al admin del proyecto)
 
-## Instalación
+## 🚀 Instalación
 
 1. Clona el repositorio:
 ```bash
@@ -28,7 +28,7 @@ de diseño como MVC, DAO y Factory.
    - Clic en **OK** → **Apply** → **OK**
    - Revisa Project Structure para comprobar que se ha guardado correctamente.
 
-## Configuración de la base de datos
+## 🚀 Configuración de la base de datos
 
 1. Copia el archivo `.env.example` y renómbralo a `.env`
 2. Rellena los valores con las credenciales que te facilitará el admin:
@@ -52,9 +52,30 @@ El proyecto sigue el patrón MVC y está organizado en los siguientes paquetes:
 - `util/`  Clase de conexión a la base de datos
 - `vista/`  Interfaz de consola
 
+## Base de datos
+
+La base de datos está alojada en **Aiven** (MySQL en la nube) y contiene las siguientes tablas:
+
+- `articulos` → almacena los artículos de la tienda
+- `clientes` → almacena los clientes (estándar y premium)
+- `pedidos` → almacena los pedidos vinculados a clientes y artículos
+
+Todas las operaciones DML se realizan a través de **procedimientos almacenados**
+que gestionan las transacciones internamente con `START TRANSACTION`, `COMMIT`,
+`ROLLBACK` y `RESIGNAL`.
+
 ## Patrones de diseño utilizados
 
 - **MVC**: Separación entre vista, lógica y datos
 - **DAO**: Separación de la persistencia del resto de la aplicación
 - **Factory**: Instanciación de DAOs sin acoplar la implementación
 - **Singleton**: Única instancia de conexión a la base de datos
+
+## Nota sobre SSL
+
+La conexión usa `sslMode=REQUIRED` que cifra la comunicación con el servidor
+pero no verifica el certificado CA. Es suficiente para un entorno de desarrollo
+y evita problemas de compatibilidad entre sistemas operativos.
+
+Para un entorno de producción se recomienda usar `sslMode=VERIFY_CA`
+con el certificado CA correspondiente.
